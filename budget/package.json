@@ -1,0 +1,13 @@
+{
+  "name": "budget-manager",
+  "version": "1.0.0",
+  "description": "Personal budget manager with CLI and web UI",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node cli.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

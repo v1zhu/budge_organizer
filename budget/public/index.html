@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budget Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; color: #333; display: flex; min-height: 100vh; }
+.sidebar { width: 220px; background: #2c3e50; color: #ecf0f1; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; overflow-y: auto; z-index: 10; }
+.sidebar-brand { padding: 18px 16px; font-size: 1.1em; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-section { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.sidebar-label { padding: 4px 16px; font-size: .75em; text-transform: uppercase; letter-spacing: 1px; color: rgba(255,255,255,.4); }
+.nav-item { padding: 6px 16px 6px 20px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: .9em; color: rgba(255,255,255,.7); transition: all .15s; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: rgba(255,255,255,.12); color: #fff; border-left: 3px solid #3498db; }
+.nav-item .arrow { font-size: .7em; transition: transform .2s; display: inline-block; width: 14px; }
+.nav-item .arrow.open { transform: rotate(90deg); }
+.nav-item .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.nav-item .month-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; margin-left: 14px; }
+.nav-item .year-label { flex: 1; }
+.nav-item .year-total { font-size: .75em; color: rgba(255,255,255,.4); }
+.sub-nav { display: none; }
+.sub-nav.open { display: block; }
+.sub-nav .nav-item { padding-left: 36px; font-size: .82em; }
+.main { margin-left: 220px; flex: 1; padding: 24px; max-width: calc(100vw - 220px); }
+h1 { margin-bottom: 20px; color: #2c3e50; font-size: 1.4em; }
+h2 { font-size: 1.1em; color: #2c3e50; margin-bottom: 12px; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.row { display: flex; gap: 20px; flex-wrap: wrap; }
+.col { flex: 1; min-width: 280px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: .85em; font-weight: 600; margin-bottom: 4px; color: #555; }
+.form-group input, .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: .95em; }
+.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: .9em; }
+.btn-primary { background: #3498db; color: #fff; }
+.btn-primary:hover { background: #2980b9; }
+.btn-danger { background: #e74c3c; color: #fff; padding: 4px 10px; font-size: .8em; }
+.btn-danger:hover { background: #c0392b; }
+.btn-sm { padding: 4px 10px; font-size: .8em; }
+.btn-success { background: #2ecc71; color: #fff; }
+.btn-success:hover { background: #27ae60; }
+table { width: 100%; border-collapse: collapse; font-size: .85em; }
+th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; }
+th { background: #f8f9fa; font-weight: 600; color: #555; }
+tr:hover { background: #f8f9fa; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: .75em; font-weight: 600; }
+.badge-expense { background: #fde8e8; color: #c0392b; }
+.badge-earning { background: #e8f8e8; color: #27ae60; }
+.badge-ok { background: #e8f8e8; color: #27ae60; }
+.badge-warning { background: #fef3cd; color: #856404; }
+.badge-over { background: #fde8e8; color: #c0392b; }
+.stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-card { flex: 1; min-width: 120px; background: #f8f9fa; border-radius: 8px; padding: 14px; text-align: center; }
+.stat-card .stat-value { font-size: 1.4em; font-weight: 700; }
+.stat-card .stat-label { font-size: .75em; color: #888; margin-top: 2px; }
+.stat-card .stat-value.green { color: #27ae60; }
+.stat-card .stat-value.red { color: #c0392b; }
+.budget-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eee; font-size: .85em; }
+.budget-row:last-child { border-bottom: none; }
+.budget-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.budget-bar-wrap { flex: 1; height: 16px; background: #eee; border-radius: 8px; overflow: hidden; min-width: 80px; }
+.budget-bar { height: 100%; border-radius: 8px; transition: width .3s; }
+.budget-info { font-size: .78em; color: #666; min-width: 70px; text-align: right; }
+.warning-msg { background: #fef3cd; color: #856404; padding: 10px 14px; border-radius: 6px; margin-bottom: 12px; font-size: .88em; display: none; }
+.warning-msg.over { background: #fde8e8; color: #c0392b; }
+.filter-bar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.filter-bar .form-group { margin-bottom: 0; min-width: 100px; }
+.chart-row { display: flex; gap: 20px; flex-wrap: wrap; }
+.chart-box { flex: 1; min-width: 250px; max-width: 450px; }
+.chart-wide { flex: 1; min-width: 350px; }
+.hidden { display: none; }
+.month-selector { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+.month-btn { padding: 4px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; font-size: .82em; background: #fff; color: #555; }
+.month-btn:hover { background: #f0f0f0; }
+.month-btn.active { background: #3498db; color: #fff; border-color: #3498db; }
+</style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-brand">Budget Manager</div>
+  <div class="sidebar-section">
+    <div class="nav-item" onclick="selectAllTime()">
+      <span class="arrow">&#9654;</span>
+      <span>All Time</span>
+    </div>
+  </div>
+  <div class="sidebar-section" id="year-nav"></div>
+</div>
+
+<div class="main" id="main-content">
+  <div id="warning-box" class="warning-msg"></div>
+
+  <div id="view-all">
+    <h1>All Time Overview</h1>
+    <div class="stat-row" id="all-stats"></div>
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <h2>Yearly Totals</h2>
+          <canvas id="all-yearlyChart"></canvas>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h2>Overall Expense Breakdown</h2>
+          <canvas id="all-pieChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-year" class="hidden">
+    <h1 id="year-title"></h1>
+    <div class="stat-row" id="year-stats"></div>
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <h2>Monthly Breakdown</h2>
+          <div class="month-selector" id="year-months"></div>
+          <canvas id="year-monthlyChart"></canvas>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h2>Expense Breakdown</h2>
+          <canvas id="year-pieChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="view-month" class="hidden">
+    <h1 id="month-title"></h1>
+    <div class="stat-row" id="month-stats"></div>
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <h2>Add Entry</h2>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="entry-type"><option value="expense">Expense</option><option value="earning">Earning</option></select>
+          </div>
+          <div class="form-group">
+            <label>Amount ($)</label>
+            <input type="number" id="entry-amount" step="0.01" min="0">
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select id="entry-category"></select>
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input type="text" id="entry-desc" placeholder="Optional">
+          </div>
+          <button class="btn btn-primary" onclick="addEntry()">Add Entry</button>
+        </div>
+
+        <div class="card">
+          <h2>Budgets</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-size:.9em">
+            <select id="budget-category" style="flex:1;min-width:80px;padding:6px;border:1px solid #ddd;border-radius:4px"></select>
+            <input type="number" id="budget-limit" placeholder="Limit $" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px">
+            <input type="number" id="budget-warning" placeholder="Warn $" style="width:80px;padding:6px;border:1px solid #ddd;border-radius:4px">
+            <button class="btn btn-primary btn-sm" onclick="setBudget()">Set</button>
+          </div>
+          <div id="budget-list"></div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <h2>Entries</h2>
+          <div class="filter-bar" style="margin-bottom:10px">
+            <div class="form-group">
+              <label>Type</label>
+              <select id="filter-type" onchange="loadEntries()"><option value="">All</option><option value="expense">Expense</option><option value="earning">Earning</option></select>
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <select id="filter-category" onchange="loadEntries()"><option value="">All</option></select>
+            </div>
+          </div>
+          <div style="max-height:280px;overflow-y:auto">
+            <table>
+              <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Amount</th><th></th></tr></thead>
+              <tbody id="entries-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Expense Breakdown</h2>
+          <canvas id="month-pieChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const now = new Date();
+const currMonth = String(now.getMonth()+1).padStart(2,'0');
+const currYear = String(now.getFullYear());
+
+let pieChart, monthlyChart, yearlyChart, allPieChart, allYearlyChart;
+let categoryColors = {};
+let currentView = null;
+let selectedYear = null;
+let selectedMonth = null;
+
+const MONTH_NAMES = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function showWarning(msg, isOver) {
+  const box = document.getElementById('warning-box');
+  box.textContent = msg;
+  box.className = 'warning-msg' + (isOver ? ' over' : '');
+  box.style.display = msg ? 'block' : 'none';
+  if (msg) setTimeout(() => { box.style.display = 'none'; }, 5000);
+}
+
+function showView(view) {
+  ['view-all','view-year','view-month'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('view-'+view).classList.remove('hidden');
+  currentView = view;
+}
+
+function loadCategoryColors() {
+  fetch('/api/category-colors').then(r=>r.json()).then(cc => { categoryColors = cc; });
+}
+loadCategoryColors();
+
+function loadCategories() {
+  fetch('/api/categories/expense').then(r=>r.json()).then(cats => {
+    const sel = document.getElementById('entry-category');
+    sel.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    const sel2 = document.getElementById('budget-category');
+    sel2.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    const sel3 = document.getElementById('filter-category');
+    sel3.innerHTML = '<option value="">All</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  });
+}
+loadCategories();
+
+function addEntry() {
+  const data = {
+    type: document.getElementById('entry-type').value,
+    amount: parseFloat(document.getElementById('entry-amount').value),
+    category: document.getElementById('entry-category').value,
+    description: document.getElementById('entry-desc').value,
+    date: (selectedYear && selectedMonth) ? `${selectedYear}-${selectedMonth}-01` : now.toISOString().slice(0,10)
+  };
+  if (!data.amount || data.amount <= 0) { alert('Enter a valid amount'); return; }
+  fetch('/api/entries', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) })
+    .then(r=>r.json()).then(resp => {
+      document.getElementById('entry-amount').value = '';
+      document.getElementById('entry-desc').value = '';
+      loadCategoryColors();
+      loadBudgets();
+      refreshAll();
+      if (resp.budgetCheck && resp.budgetCheck.status !== 'ok') {
+        if (resp.budgetCheck.status === 'over') {
+          showWarning(`OVER BUDGET on ${data.category}! Limit: $${resp.budgetCheck.limit}, Total this month: $${resp.budgetCheck.newTotal}`, true);
+        } else {
+          showWarning(`WARNING: $${resp.budgetCheck.remaining} remaining on ${data.category} before limit of $${resp.budgetCheck.limit}`, false);
+        }
+      }
+    });
+}
+
+function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  fetch(`/api/entries/${id}`, { method:'DELETE' }).then(() => {
+    loadCategoryColors();
+    loadBudgets();
+    refreshAll();
+  });
+}
+
+function loadEntries() {
+  const params = new URLSearchParams();
+  if (selectedMonth) params.set('month', selectedMonth);
+  if (selectedYear) params.set('year', selectedYear);
+  const t = document.getElementById('filter-type').value; if(t) params.set('type', t);
+  const c = document.getElementById('filter-category').value; if(c) params.set('category', c);
+  fetch('/api/entries?'+params).then(r=>r.json()).then(entries => {
+    const tbody = document.getElementById('entries-body');
+    tbody.innerHTML = entries.slice(0,100).map(e => {
+      const color = categoryColors[e.category] || '#999';
+      return `<tr>
+        <td>${e.date}</td>
+        <td><span class="badge badge-${e.type}">${e.type}</span></td>
+        <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:4px;vertical-align:middle"></span>${e.category}</td>
+        <td>$${e.amount.toFixed(2)}</td>
+        <td><button class="btn btn-danger" onclick="deleteEntry(${e.id})">x</button></td>
+      </tr>`;
+    }).join('');
+  });
+}
+
+function setBudget() {
+  const category = document.getElementById('budget-category').value;
+  const limit = parseFloat(document.getElementById('budget-limit').value);
+  const warning = parseFloat(document.getElementById('budget-warning').value);
+  if (!limit || limit <= 0) { alert('Enter a valid limit'); return; }
+  fetch('/api/budgets', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ category, limit, warning: warning || 0 }) })
+    .then(r=>r.json()).then(() => {
+      document.getElementById('budget-limit').value = '';
+      document.getElementById('budget-warning').value = '';
+      loadBudgets();
+    });
+}
+
+function deleteBudget(category) {
+  if (!confirm(`Delete budget for ${category}?`)) return;
+  fetch(`/api/budgets/${encodeURIComponent(category)}`, { method:'DELETE' }).then(() => loadBudgets());
+}
+
+function loadBudgets() {
+  const m = selectedMonth || currMonth;
+  const y = selectedYear || currYear;
+  fetch('/api/budgets/check?amount=0&month='+m+'&year='+y).then(r=>r.json()).then(() => {
+    fetch('/api/budgets').then(r=>r.json()).then(budgets => {
+      const div = document.getElementById('budget-list');
+      const entries = Object.entries(budgets);
+      if (!entries.length) { div.innerHTML = '<div style="color:#999;font-size:.85em">No budgets set</div>'; return; }
+      div.innerHTML = entries.map(([cat, b]) => {
+        const pct = Math.min(b.spent / b.limit * 100, 100);
+        const barColor = pct >= 100 ? '#e74c3c' : pct >= (b.limit - b.warning) / b.limit * 100 ? '#f39c12' : '#2ecc71';
+        const status = b.spent >= b.limit ? 'over' : (b.limit - b.spent <= b.warning ? 'warning' : 'ok');
+        return `<div class="budget-row">
+          <span class="budget-dot" style="background:${categoryColors[cat] || '#999'}"></span>
+          <span style="min-width:60px"><strong>${cat}</strong></span>
+          <div class="budget-bar-wrap">
+            <div class="budget-bar" style="width:${pct}%;background:${barColor}"></div>
+          </div>
+          <span class="budget-info">$${b.spent} / $${b.limit}</span>
+          <span class="badge badge-${status}">${status === 'over' ? 'OVER' : status === 'warning' ? 'WARN' : 'OK'}</span>
+          <button class="btn btn-danger btn-sm" onclick="deleteBudget('${cat.replace(/'/g, "\\'")}')">x</button>
+        </div>`;
+      }).join('');
+    });
+  });
+}
+
+function buildSidebar() {
+  fetch('/api/years').then(r=>r.json()).then(range => {
+    const minY = parseInt(range.min), maxY = parseInt(range.max);
+    const nav = document.getElementById('year-nav');
+    nav.innerHTML = '';
+    for (let y = maxY; y >= minY; y--) {
+      const yearDiv = document.createElement('div');
+      yearDiv.className = 'sidebar-section';
+      yearDiv.innerHTML = `<div class="nav-item year-item" data-year="${y}" onclick="toggleYear(${y})">
+        <span class="arrow" id="arrow-${y}">&#9654;</span>
+        <span class="year-label">${y}</span>
+        <span class="year-total" id="ytotal-${y}"></span>
+      </div>
+      <div class="sub-nav" id="sub-${y}"></div>`;
+      nav.appendChild(yearDiv);
+      fetch('/api/years/'+y+'/months').then(r=>r.json()).then(months => {
+        const sub = document.getElementById('sub-'+y);
+        sub.innerHTML = months.map(m => `
+          <div class="nav-item" onclick="event.stopPropagation();selectMonth(${y},'${m}')">
+            <span class="month-dot" style="background:${categoryColors['Other'] || '#999'}"></span>
+            ${MONTH_NAMES[parseInt(m)]}
+          </div>
+        `).join('');
+        fetch('/api/summary?year='+y).then(r=>r.json()).then(data => {
+          const total = data.reduce((s,d) => s + d.value, 0);
+          document.getElementById('ytotal-'+y).textContent = '$' + total.toFixed(0);
+        });
+      });
+    }
+  });
+}
+
+function toggleYear(y) {
+  const sub = document.getElementById('sub-'+y);
+  const arrow = document.getElementById('arrow-'+y);
+  sub.classList.toggle('open');
+  arrow.classList.toggle('open');
+  selectYear(y);
+}
+
+function selectAllTime() {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  selectedYear = null; selectedMonth = null;
+  showView('all');
+  loadAllTimeView();
+}
+
+function selectYear(y) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.querySelector(`.year-item[data-year="${y}"]`);
+  if (el) el.classList.add('active');
+  selectedYear = String(y); selectedMonth = null;
+  showView('year');
+  loadYearView(y);
+}
+
+function selectMonth(y, m) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  selectedYear = String(y); selectedMonth = m;
+  showView('month');
+  loadMonthView(y, m);
+}
+
+function refreshAll() {
+  if (currentView === 'all') loadAllTimeView();
+  else if (currentView === 'year') loadYearView(selectedYear);
+  else if (currentView === 'month') loadMonthView(selectedYear, selectedMonth);
+  buildSidebar();
+}
+
+function loadAllTimeView() {
+  document.getElementById('all-stats').innerHTML = 'Loading...';
+  Promise.all([
+    fetch('/api/summary?type=expense').then(r=>r.json()),
+    fetch('/api/summary?type=earning').then(r=>r.json()),
+    fetch('/api/monthly').then(r=>r.json())
+  ]).then(([exp, earn, monthly]) => {
+    const expTotal = exp.reduce((s,d) => s + d.value, 0);
+    const earnTotal = earn.reduce((s,d) => s + d.value, 0);
+    document.getElementById('all-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-value red">$${expTotal.toFixed(0)}</div><div class="stat-label">Total Expenses</div></div>
+      <div class="stat-card"><div class="stat-value green">$${earnTotal.toFixed(0)}</div><div class="stat-label">Total Earnings</div></div>
+      <div class="stat-card"><div class="stat-value ${earnTotal >= expTotal ? 'green' : 'red'}">$${(earnTotal - expTotal).toFixed(0)}</div><div class="stat-label">Net</div></div>
+      <div class="stat-card"><div class="stat-value">${monthly.length}</div><div class="stat-label">Months with Data</div></div>
+    `;
+
+    const ctx1 = document.getElementById('all-yearlyChart').getContext('2d');
+    if (allYearlyChart) allYearlyChart.destroy();
+    allYearlyChart = new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: monthly.map(d => d.month),
+        datasets: [{ label: 'Net', data: monthly.map(d => d.total), backgroundColor: '#3498db' }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    const ctx2 = document.getElementById('all-pieChart').getContext('2d');
+    if (allPieChart) allPieChart.destroy();
+    allPieChart = new Chart(ctx2, {
+      type: 'pie',
+      data: {
+        labels: exp.map(d => d.label),
+        datasets: [{ data: exp.map(d => d.value), backgroundColor: exp.map(d => categoryColors[d.label] || '#999') }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  });
+}
+
+function loadYearView(y) {
+  document.getElementById('year-title').textContent = y;
+  document.getElementById('year-stats').innerHTML = 'Loading...';
+  Promise.all([
+    fetch('/api/summary?type=expense&year='+y).then(r=>r.json()),
+    fetch('/api/summary?type=earning&year='+y).then(r=>r.json()),
+    fetch('/api/monthly?year='+y).then(r=>r.json()),
+    fetch('/api/years/'+y+'/months').then(r=>r.json())
+  ]).then(([exp, earn, allMonthly, months]) => {
+    const expTotal = exp.reduce((s,d) => s + d.value, 0);
+    const earnTotal = earn.reduce((s,d) => s + d.value, 0);
+    const monthly = allMonthly.filter(d => d.month.startsWith(y));
+    document.getElementById('year-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-value red">$${expTotal.toFixed(0)}</div><div class="stat-label">Expenses</div></div>
+      <div class="stat-card"><div class="stat-value green">$${earnTotal.toFixed(0)}</div><div class="stat-label">Earnings</div></div>
+      <div class="stat-card"><div class="stat-value ${earnTotal >= expTotal ? 'green' : 'red'}">$${(earnTotal - expTotal).toFixed(0)}</div><div class="stat-label">Net</div></div>
+      <div class="stat-card"><div class="stat-value">${months.length}</div><div class="stat-label">Active Months</div></div>
+    `;
+
+    const monthContainer = document.getElementById('year-months');
+    monthContainer.innerHTML = months.map(m => {
+      const monthNum = parseInt(m);
+      const monthData = monthly.find(d => d.month === y+'-'+m);
+      return `<button class="month-btn" onclick="selectMonth(${y},'${m}')">${MONTH_NAMES[monthNum]}${monthData ? ' ($'+monthData.total.toFixed(0)+')' : ''}</button>`;
+    }).join('');
+
+    const expByMonth = {}, earnByMonth = {};
+    monthly.forEach(d => {
+      const mn = parseInt(d.month.split('-')[1])-1;
+      expByMonth[mn] = expByMonth[mn] || 0;
+      earnByMonth[mn] = earnByMonth[mn] || 0;
+    });
+    const labels = Array.from({length:12}, (_,i) => MONTH_NAMES[i+1]);
+    const expData = labels.map((_,i) => { const m = monthly.find(d => parseInt(d.month.split('-')[1])-1 === i); return m ? m.total : 0; });
+
+    const ctx1 = document.getElementById('year-monthlyChart').getContext('2d');
+    if (monthlyChart) monthlyChart.destroy();
+    monthlyChart = new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: 'Total ($)', data: expData, backgroundColor: '#3498db' }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+
+    const ctx2 = document.getElementById('year-pieChart').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(ctx2, {
+      type: 'pie',
+      data: {
+        labels: exp.map(d => d.label),
+        datasets: [{ data: exp.map(d => d.value), backgroundColor: exp.map(d => categoryColors[d.label] || '#999') }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  });
+}
+
+function loadMonthView(y, m) {
+  document.getElementById('month-title').textContent = `${MONTH_NAMES[parseInt(m)]} ${y}`;
+  document.getElementById('month-stats').innerHTML = 'Loading...';
+  Promise.all([
+    fetch('/api/summary?type=expense&year='+y+'&month='+m).then(r=>r.json()),
+    fetch('/api/summary?type=earning&year='+y+'&month='+m).then(r=>r.json())
+  ]).then(([exp, earn]) => {
+    const expTotal = exp.reduce((s,d) => s + d.value, 0);
+    const earnTotal = earn.reduce((s,d) => s + d.value, 0);
+    document.getElementById('month-stats').innerHTML = `
+      <div class="stat-card"><div class="stat-value red">$${expTotal.toFixed(0)}</div><div class="stat-label">Expenses</div></div>
+      <div class="stat-card"><div class="stat-value green">$${earnTotal.toFixed(0)}</div><div class="stat-label">Earnings</div></div>
+      <div class="stat-card"><div class="stat-value ${earnTotal >= expTotal ? 'green' : 'red'}">$${(earnTotal - expTotal).toFixed(0)}</div><div class="stat-label">Net</div></div>
+      <div class="stat-card"><div class="stat-value">${exp.length}</div><div class="stat-label">Categories</div></div>
+    `;
+
+    const ctx = document.getElementById('month-pieChart').getContext('2d');
+    if (pieChart) pieChart.destroy();
+    pieChart = new Chart(ctx, {
+      type: 'pie',
+      data: {
+        labels: exp.map(d => d.label),
+        datasets: [{ data: exp.map(d => d.value), backgroundColor: exp.map(d => categoryColors[d.label] || '#999') }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    loadEntries();
+    loadBudgets();
+  });
+}
+
+buildSidebar();
+selectAllTime();
+</script>
+</body>
+</html>
